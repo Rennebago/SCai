@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SCai | Leads</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app" id="app">
+    <nav class="sidenav" id="sidenav" aria-label="Primary"></nav>
+
+    <div class="page page-leads" id="pageLeads">
+      <section class="inbox" id="inbox" aria-label="Lead list"></section>
+      <main class="middle" id="middle"></main>
+    </div>
+    <main class="page page-perf" id="pagePerf" hidden></main>
+    <main class="page page-stub" id="pageStub" hidden></main>
+
+    <aside class="ava" id="ava" aria-labelledby="avaTitle">
+      <header class="ava-head">
+        <h2 class="ava-title" id="avaTitle">AVA Chat</h2>
+        <div class="ava-actions">
+          <button class="icon-btn" type="button" aria-label="Knowledge base" data-icon="book"></button>
+          <button class="icon-btn" type="button" aria-label="Chat history" data-icon="message-square"></button>
+          <button class="icon-btn" type="button" aria-label="New chat" data-action="new-chat" data-icon="plus"></button>
+          <button class="icon-btn" type="button" id="chatDock" data-action="chat-dock" aria-label="Dock chat to the right" aria-pressed="false" data-icon="sidebar-right"></button>
+          <button class="icon-btn icon-btn-plain" type="button" aria-label="Close AVA Chat" data-action="chat-close" data-icon="x"></button>
+        </div>
+      </header>
+
+      <div class="ava-body">
+        <div class="ava-log" id="chatLog" role="log" aria-live="polite" aria-label="Conversation with AVA"></div>
+        <div class="ava-footer">
+          <button class="chip chip-info chip-action" type="button" id="chatSuggestion" data-action="suggestion">Draft me an email response to this lead</button>
+          <form class="chat-box" data-form="chat" autocomplete="off">
+            <label class="sr-only" for="chatInput">Chat with AVA</label>
+            <input id="chatInput" class="chat-input" type="text" placeholder="Chat with me">
+            <button class="icon-btn" type="submit" aria-label="Send message" data-icon="send"></button>
+          </form>
+          <p class="ava-note">AI can make mistakes. Check yoself.</p>
+        </div>
+      </div>
+
+      <div class="ava-overlay" id="chatOverlay" hidden></div>
+    </aside>
+
+    <button class="fab" id="fab" type="button" data-action="chat-toggle" aria-label="Open AVA Chat" aria-expanded="false" aria-controls="ava" title="AVA Chat (drag to move)" hidden data-icon="message-circle" data-icon-size="24"></button>
+
+    <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+  </div>
+  <div id="dialogRoot"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
