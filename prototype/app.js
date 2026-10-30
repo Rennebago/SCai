@@ -165,6 +165,25 @@
   const allLeads = () => activeLeads.concat(archivedLeads, pipelineOnly);
   const leadById = (id) => allLeads().find((l) => l.id === id);
 
+  // Lead Details and All Playbooks tabs. Placeholder values: Wyck's match the Figma frame, the rest are made up.
+  const LEAD_INFO = {
+    wyck: { applicant: '63egher45djkslk5678d', score: '87.01', debt: '$26,489.00', contact: 'August 7, 2026' },
+    patricia: { applicant: '48pmoyr21qwsxz9034a', score: '92.40', debt: '$37,344.00', contact: 'August 6, 2026' },
+    ruth: { applicant: '71rlvgs88hjtnb2215c', score: '90.15', debt: '$47,000.00', contact: 'August 6, 2026' },
+    gerrie: { applicant: '29gdoyl63mkcvf7781e', score: '74.62', debt: '$24,900.00', contact: 'August 5, 2026' },
+    calvin: { applicant: '55cmorg17ztyuq4408b', score: '81.30', debt: '$47,000.00', contact: 'August 6, 2026' },
+    bechir: { applicant: '36bclem92rpwld5509d', score: '88.75', debt: '$29,700.00', contact: 'August 4, 2026' }
+  };
+  const leadInfo = (l) => Object.assign({ applicant: '—', score: '—', debt: '—', contact: LAST_CONTACT.date }, LEAD_INFO[l.id]);
+  // [playbook, date, time, completion rate]
+  const PLAYBOOKS = [
+    ['FDR Call Behavior Playbook', 'October, 27, 2026', '1:44pm', 56],
+    ['FDR Sales Playbook', 'October, 27, 2026', '1:44pm', 77],
+    ['FDR Call Behavior Playbook', 'October, 22, 2026', '1:44pm', 65],
+    ['FDR Sales Playbook', 'October, 22, 2026', '1:44pm', 89]
+  ];
+  const PLAYBOOK_TARGET = 70; // completion at or above this is a success chip
+
   /* ---- Performance: pipeline (mirrors the Performance > Leads frame) ---- */
   // r = reserved, age = days reserved (of 30). Rows past the first ten are filler so the stage counts add up.
   const pipe = (o) => Object.assign({ r: false, arp: false, ca: false, stip: null, stipTone: 'negative', uw: 'Submitted', uwTone: '', age: null, ok: false }, o);
@@ -647,13 +666,14 @@
     const l = selectedLead();
     if (!l) { $('#middle').innerHTML = ''; return; }
     const hasDot = l.unread || !!l.draft;
-    const tabs = [['insights', 'Insights'], ['communications', 'Communications'], ['details', 'Lead Details'], ['playbooks', 'Playbooks']]
+    const tabs = [['insights', 'Latest Insights'], ['communications', 'Communications'], ['details', 'Lead Details'], ['playbooks', 'All Playbooks']]
       .map(([id, label]) => `<button class="tab" type="button" role="tab" id="tab-${id}" aria-selected="${state.tab === id}" aria-controls="tabpanel" data-action="tab" data-tab="${id}">${label}${id === 'communications' && hasDot ? '<span class="tab-dot" role="img" aria-label="New activity"></span>' : ''}</button>`)
       .join('');
     let panel = '';
     if (state.tab === 'communications') panel = renderComms(l);
     else if (state.tab === 'insights') panel = renderInsights(l);
-    else panel = `<p class="placeholder-note">${state.tab === 'details' ? 'Lead Details' : 'Playbooks'} isn't part of this prototype yet.</p>`;
+    else if (state.tab === 'details') panel = renderDetails(l);
+    else panel = renderPlaybooks(l);
 
     $('#middle').innerHTML = `
       <header class="lead-head">
@@ -842,6 +862,38 @@
         <p>Showing intent progression across # interactions.</p>
         <div class="fpo-rect">Intent chart FPO</div>
       </section>`;
+  }
+
+  /* ---- Lead Details ---- */
+  const detailSection = (id, title, fields) => `<section class="section-card" aria-labelledby="${id}">
+      <h3 class="section-title" id="${id}">${title}</h3>
+      <dl class="detail-grid">${fields.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
+    </section>`;
+
+  function renderDetails(l) {
+    const i = leadInfo(l);
+    return `<div class="tab-stack">
+      ${detailSection('pi-h', 'Personal Information', [['Full Name', l.name], ['Email', l.email], ['Phone Number', l.phone]])}
+      ${detailSection('li-h', 'Lead Information', [['Applicant ID', i.applicant], ['Lead Score', i.score], ['Status', l.status], ['State', archivedLeads.includes(l) ? 'Archived' : 'Active'], ['Est. Total Debt', i.debt], ['Contact Date', i.contact]])}
+    </div>`;
+  }
+
+  /* ---- All Playbooks ---- */
+  function renderPlaybooks() {
+    const rows = PLAYBOOKS.map(([name, date, time, rate]) => `<tr>
+        <th scope="row">${name}</th>
+        <td>${AGENT.email}</td>
+        <td><span class="cell-stack"><span>${date}</span><span class="cell-sub">${time}</span></span></td>
+        <td><span class="chip ${rate >= PLAYBOOK_TARGET ? 'chip-positive' : 'chip-warning'}">${rate}%<span class="sr-only">${rate >= PLAYBOOK_TARGET ? ', at or above target' : ', below target'}</span></span></td>
+        <td><button class="link" type="button" data-action="res-noop">View result<span class="sr-only">, ${name}, ${date}</span></button></td>
+      </tr>`).join('');
+    return `<div class="tab-stack"><section class="section-card" aria-label="All playbooks">
+      <div class="table-scroll"><table class="table table-flush">
+        <caption class="sr-only">Playbooks evaluated for this lead</caption>
+        <thead><tr><th scope="col">Playbook Name</th><th scope="col">Agent email</th><th scope="col">Date Evaluated</th><th scope="col">Completion Rate</th><th scope="col">Actions</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+    </section></div>`;
   }
 
   /* ---- Chat ---- */
@@ -1194,6 +1246,7 @@
   }
 
   function openLead(id, tab) {
+    leadById(id).unread = false;
     Object.assign(state, { page: 'leads', view: 'inbox', filter: 'all', selectedId: id, tab: tab || 'communications', promptOpen: false, summaryOpen: false });
     render();
   }
@@ -1280,7 +1333,6 @@
     ['phone-call', 'Find coaching opportunities in this week\u2019s calls.'],
     ['edit-3', 'Prepare coaching notes for your 1-1s.']
   ];
-  const UM_SUGGESTION = 'Which agents should I coach first?';
   const umDayAheadHtml = () => `<p class="msg-ava">Here’s a look at your day ahead:</p>${schedHtml(UM_DAY, 'Your schedule today')}${todoHtml(UM_TODO, 'dash-todo')}`;
   // Rows use the DC row shape. act is the click handler: dash-ask opens the Researcher, res-noop says the screen is not built yet.
   const coach = (name, sub, tip) => ({ name, sub, tip, act: 'dash-ask', q: askCoaching(name) });
@@ -1774,7 +1826,8 @@
     dock.setAttribute('aria-pressed', String(mode === 'docked'));
     dock.setAttribute('aria-label', mode === 'docked' ? 'Float chat over the page' : 'Dock chat to the right');
     const leadsFocus = state.page === 'performance' || state.page === 'dashboard';
-    $('#chatSuggestion').textContent = state.role === 'um' ? UM_SUGGESTION : leadsFocus ? 'Which leads should I work first?' : 'Draft me an email response to this lead';
+    $('#chatSuggestion').hidden = leadsFocus; // only the Leads page has a suggestion: drafting for the open lead
+    $('#chatSuggestion').textContent = 'Draft me an email response to this lead';
     $('#chatInput').placeholder = state.page === 'dashboard' ? 'How can I help you today?' : 'Chat with me';
     document.title = `SCai | ${PAGES[state.page].label}`;
   }
@@ -2224,6 +2277,7 @@
       }
       case 'select-lead':
         state.selectedId = t.dataset.id;
+        leadById(t.dataset.id).unread = false; // opening a lead reads it, like an inbox
         state.promptOpen = false;
         state.summaryOpen = false;
         render();
@@ -2313,7 +2367,7 @@
         break;
       }
       case 'suggestion':
-        handleChatMessage(state.role === 'um' ? UM_SUGGESTION : state.page === 'performance' || state.page === 'dashboard' ? 'Which leads should I work first?' : `Draft me an email response to Lead #${LEAD_ID}`);
+        handleChatMessage(`Draft me an email response to Lead #${LEAD_ID}`);
         break;
       case 'new-chat':
         state.chat = [];
