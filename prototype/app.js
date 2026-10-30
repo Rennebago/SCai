@@ -225,17 +225,20 @@
   };
   const FILTER_LABELS = { state: 'State', tz: 'Timezone', channel: 'Marketing channel', source: 'Source' };
 
+  // `roles` lists the prototype views that show the page in the nav. The Dashboard exists in both and will differ per role.
+  const ROLES = [['dc', 'DC'], ['um', 'UM']];
   const PAGES = {
-    dashboard: { label: 'Dashboard', icon: 'monitor' },
-    leads: { label: 'Leads', icon: 'users' },
-    performance: { label: 'Performance', icon: 'trending-up' },
-    researcher: { label: 'Researcher', icon: 'tool' }
+    dashboard: { label: 'Dashboard', icon: 'monitor', roles: ['dc', 'um'] },
+    leads: { label: 'Leads', icon: 'users', roles: ['dc'] },
+    performance: { label: 'Performance', icon: 'trending-up', roles: ['dc'] },
+    researcher: { label: 'Researcher', icon: 'tool', roles: ['um'] }
   };
 
   /* ======================================================================
      State
      ====================================================================== */
   const state = {
+    role: 'dc',              // prototype view: 'dc' | 'um' (set from the prototype toggle in the side nav)
     page: 'leads',           // 'dashboard' | 'leads' | 'performance' | 'researcher'
     navCollapsed: false,
     chatMode: { leads: 'docked', performance: 'closed', dashboard: 'closed', researcher: 'closed' },
@@ -303,13 +306,15 @@
      ====================================================================== */
   function renderSidenav() {
     const collapsed = state.navCollapsed;
-    const items = Object.keys(PAGES).map((id) => {
+    const items = Object.keys(PAGES).filter((id) => PAGES[id].roles.includes(state.role)).map((id) => {
       const p = PAGES[id];
       const active = state.page === id;
       return `<li><button class="nav-item${active ? ' is-active' : ''}" type="button" data-action="nav" data-nav="${id}"${active ? ' aria-current="page"' : ''}>
         <span class="nav-icon">${icon(p.icon, 16)}</span><span class="nav-text">${p.label}</span>
       </button></li>`;
     }).join('');
+    const roleToggles = ROLES.map(([id, label]) =>
+      `<button class="toggle" type="button" data-action="role" data-role="${id}" aria-pressed="${state.role === id}" aria-label="${label} view">${label}</button>`).join('');
     $('#sidenav').innerHTML = `
       <div class="sn-top">
         <div class="sn-brand">
@@ -321,12 +326,18 @@
           <ul class="sn-menu" aria-labelledby="snLabel">${items}</ul>
         </div>
       </div>
-      <div class="sn-foot">
-        <div class="sn-user">
-          <span class="avatar" role="img" aria-label="Tom L."><span aria-hidden="true">TL</span><span class="avatar-badge"></span></span>
-          <span class="sn-name">Tom L.</span>
+      <div class="sn-bottom">
+        <div class="sn-proto" role="group" aria-label="Prototype view">
+          <p class="sn-proto-label" aria-hidden="true">Prototype view</p>
+          <div class="toggle-group">${roleToggles}</div>
         </div>
-        <span class="chip chip-sm chip-positive sn-chip">Available</span>
+        <div class="sn-foot">
+          <div class="sn-user">
+            <span class="avatar" role="img" aria-label="Tom L."><span aria-hidden="true">TL</span><span class="avatar-badge"></span></span>
+            <span class="sn-name">Tom L.</span>
+          </div>
+          <span class="chip chip-sm chip-positive sn-chip">Available</span>
+        </div>
       </div>`;
   }
 
@@ -850,7 +861,7 @@
     const label = PAGES[state.page].label;
     $('#pageStub').innerHTML = `
       <header class="page-head"><h1 class="page-title">${label}</h1></header>
-      <p class="placeholder-note">${label} isn't part of this prototype yet.</p>`;
+      <p class="placeholder-note">The ${state.role.toUpperCase()} ${label} isn't part of this prototype yet.</p>`;
   }
 
   /* ---- Layout: pages and AVA chat mode ---- */
@@ -881,6 +892,7 @@
     dock.setAttribute('aria-pressed', String(mode === 'docked'));
     dock.setAttribute('aria-label', mode === 'docked' ? 'Float chat over the page' : 'Dock chat to the right');
     $('#chatSuggestion').textContent = state.page === 'performance' ? 'Which leads should I work first?' : 'Draft me an email response to this lead';
+    $('#chatSuggestion').hidden = state.role === 'um'; // the suggestion is lead-specific, so it is a DC prompt
     document.title = `SCai | ${PAGES[state.page].label}`;
   }
 
@@ -1076,6 +1088,15 @@
         const nav = t.dataset.nav;
         if (nav === 'leads' && state.page === 'leads' && state.view === 'archived') showView('inbox');
         else { state.page = nav; render(); }
+        break;
+      }
+      case 'role': {
+        if (t.dataset.role === state.role) break;
+        state.role = t.dataset.role;
+        // Land on the Dashboard when the current page does not exist in the new view.
+        if (!PAGES[state.page].roles.includes(state.role)) state.page = 'dashboard';
+        render();
+        $(`[data-role="${state.role}"]`).focus();
         break;
       }
       case 'toggle-archived':
