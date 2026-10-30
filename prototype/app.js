@@ -862,9 +862,9 @@
   // Dashboard only: the day ahead and suggested to-dos sit at the top of the chat.
   function renderDay() {
     const day = $('#chatDay');
-    const on = state.page === 'dashboard' && state.role === 'dc';
+    const on = state.page === 'dashboard';
     day.hidden = !on;
-    day.innerHTML = on ? dayAheadHtml() : '';
+    day.innerHTML = on ? (state.role === 'um' ? umDayAheadHtml() : dayAheadHtml()) : '';
   }
 
   function renderOverlay() {
@@ -1132,7 +1132,8 @@
     attn: ['alert-circle', 'Needs attention', 'lead-tag-attn'],
     ace: ['star', 'High ACE reward', 'lead-tag-ace'],
     dra: ['edit-3', 'DRA signed', 'lead-tag-dra'],
-    demo: ['mouse-pointer', 'Ready for demo', 'lead-tag-demo']
+    demo: ['mouse-pointer', 'Ready for demo', 'lead-tag-demo'],
+    top: ['star', 'Top performer', 'lead-tag-ace']
   };
   // draft: 'type:topic' starts an AVA draft when the row is chosen. ic: umbrella marks an ARP lead.
   const STACK = [
@@ -1179,16 +1180,17 @@
     return `Your biggest gaps to target are ${joinList(areas)}. Want me to look at what is driving them?`;
   }
 
-  function dayAheadHtml() {
-    const items = DAY_AHEAD.map((s) => {
-      const link = s.link ? `<button class="link link-md" type="button" data-action="${s.link[1]}" data-id="${s.link[2]}">${s.link[0]}</button>` : '';
-      return `<li class="sched-item"><span class="sched-rail" aria-hidden="true"><i></i></span>
+  // Shared by both dashboards. A link is [label, action, arg]; a to-do is [icon, text, arg]. The arg goes to the click handler as data-arg.
+  const schedHtml = (items, label) => `<ol class="sched" aria-label="${label}">${items.map((s) => {
+    const link = s.link ? `<button class="link link-md" type="button" data-action="${s.link[1]}" data-arg="${esc(s.link[2])}">${s.link[0]}</button>` : '';
+    return `<li class="sched-item"><span class="sched-rail" aria-hidden="true"><i></i></span>
         <div class="sched-main"><p class="sched-line"><span class="sched-time">${s.time}</span><strong class="sched-title">${esc(s.title)}</strong></p>${link}</div></li>`;
-    }).join('');
-    const todos = TODO.map(([ic, text]) => `<li><button class="todo-item" type="button" data-action="dash-todo" data-q="${esc(text)}">${icon(ic, 16)}<span>${esc(text)}</span></button></li>`).join('');
-    return `<p class="msg-ava">Here’s a look at your day ahead:</p>
-      <ol class="sched" aria-label="Your schedule today">${items}</ol>
-      <ul class="todo" aria-label="Suggested to-dos">${todos}</ul>`;
+  }).join('')}</ol>`;
+  const todoHtml = (items, action) => `<ul class="todo" aria-label="Suggested to-dos">${items.map(([ic, text, arg]) =>
+    `<li><button class="todo-item" type="button" data-action="${action}" data-arg="${esc(arg || text)}">${icon(ic, 16)}<span>${esc(text)}</span></button></li>`).join('')}</ul>`;
+
+  function dayAheadHtml() {
+    return `<p class="msg-ava">Here’s a look at your day ahead:</p>${schedHtml(DAY_AHEAD, 'Your schedule today')}${todoHtml(TODO, 'dash-todo')}`;
   }
 
   function openLead(id, tab) {
@@ -1196,8 +1198,19 @@
     render();
   }
 
+  // The inside of a dashboard row: name, tags and status chip, a sub line, and an optional insight.
+  function dashRowBody(l) {
+    const tag = l.tag ? `<span class="lead-tag ${LEAD_TAGS[l.tag][2]}" role="img" aria-label="${LEAD_TAGS[l.tag][1]}" title="${LEAD_TAGS[l.tag][1]}">${icon(LEAD_TAGS[l.tag][0], 16)}</span>` : '';
+    const arp = l.ic ? `<span class="dash-arp" role="img" aria-label="ARP" title="ARP">${icon(l.ic, 16)}</span>` : '';
+    const status = l.status ? `<span class="chip chip-sm ${l.status[1]}">${l.status[0]}</span>` : '';
+    const tip = l.tip ? `<span class="dash-insight">${icon('sparkles', 16)}<span>${esc(l.tip)}</span></span>` : '';
+    return `<span class="dash-lead-top">${arp}<strong class="dash-lead-name">${esc(l.name)}</strong>${tag}${status}</span>
+        <span class="dash-lead-sub">${esc(l.sub)}${l.action ? ` <span class="dash-act">${l.action}</span>` : ''}</span>${tip}`;
+  }
+
   function renderDash() {
     const root = $('#pageDash');
+    root.dataset.role = 'dc';
     const body = $('.page-body', root);
     const scroll = body ? body.scrollTop : 0;
     const kpis = DASH_KPIS.map(([pre, label, name]) => {
@@ -1208,16 +1221,7 @@
         <p class="kpi-last">${kpiValue(r[5], r[2])}<span>vs last week</span></p>
       </li>`;
     }).join('');
-    const row = (l) => {
-      const tag = l.tag ? `<span class="lead-tag ${LEAD_TAGS[l.tag][2]}" role="img" aria-label="${LEAD_TAGS[l.tag][1]}" title="${LEAD_TAGS[l.tag][1]}">${icon(LEAD_TAGS[l.tag][0], 16)}</span>` : '';
-      const arp = l.ic ? `<span class="dash-arp" role="img" aria-label="ARP" title="ARP">${icon(l.ic, 16)}</span>` : '';
-      const status = l.status ? `<span class="chip chip-sm ${l.status[1]}">${l.status[0]}</span>` : '';
-      const tip = l.tip ? `<span class="dash-insight">${icon('sparkles', 16)}<span>${esc(l.tip)}</span></span>` : '';
-      return `<li><button class="dash-lead" type="button" data-action="dash-lead" data-id="${l.id}" data-note="${esc(l.note || l.tip || l.sub)}"${l.draft ? ` data-draft="${l.draft}"` : ''}>
-        <span class="dash-lead-top">${arp}<strong class="dash-lead-name">${esc(l.name)}</strong>${tag}${status}</span>
-        <span class="dash-lead-sub">${esc(l.sub)}${l.action ? ` <span class="dash-act">${l.action}</span>` : ''}</span>${tip}
-      </button></li>`;
-    };
+    const row = (l) => `<li><button class="dash-lead" type="button" data-action="dash-lead" data-id="${l.id}" data-note="${esc(l.note || l.tip || l.sub)}"${l.draft ? ` data-draft="${l.draft}"` : ''}>${dashRowBody(l)}</button></li>`;
     const cards = STACK.map((c, i) => `<section class="dash-card${c.wide ? ' dash-card-wide' : ''}" aria-labelledby="dc-${i}">
       <h3 class="chip ${c.chip}" id="dc-${i}">${c.title}</h3>
       <ul class="${c.wide ? 'dash-cols' : 'dash-list'}">${c.leads.map(row).join('')}</ul>
@@ -1238,6 +1242,157 @@
         </section>
       </div></div>`;
     $('.page-body', root).scrollTop = scroll;
+  }
+
+  /* ---- Dashboard (UM) ---- */
+  // The same three callouts as the DC dashboard, at team level: a snapshot of the team's metrics, who and what to focus on, and the day ahead.
+  // Placeholder data. The six agents and the figures for the week ending Oct 29 match the Researcher's reports.
+  const TEAM = [
+    { name: 'Tom Loftis', ace: 55.6, lpa: 20, conn: 77.0, close: 31.9 },
+    { name: 'Dana Reyes', ace: 49.7, lpa: 19, conn: 72.4, close: 26.4 },
+    { name: 'Jordan Okafor', ace: 53.2, lpa: 21, conn: 76.1, close: 28.0 },
+    { name: 'Mei Lin', ace: 49.4, lpa: 18, conn: 77.8, close: 27.2 },
+    { name: 'Sam Brightwell', ace: 57.0, lpa: 25, conn: 79.6, close: 33.6 },
+    { name: 'Alicia Ford', ace: 53.9, lpa: 22, conn: 74.3, close: 30.5 }
+  ];
+  // [small label, card title, metric name (for its target), agent field, team value last week, unit]
+  const TEAM_KPIS = [
+    ['Team avg.', 'Connect Rate', 'Connect Rate', 'conn', 79.4, '%'],
+    ['Team overall', 'Close Rate', 'Close Rate', 'close', 28.7, '%'],
+    ['Team avg.', 'ACE Scoring', 'ACE Score', 'ace', 55.4, '%'],
+    ['Team avg.', 'LPA', 'LPA', 'lpa', 21.3, '']
+  ];
+  // What each row or link asks the Researcher. The prototype's flows are canned, so these land on the same finished reports as the Researcher's own suggestions.
+  const askCoaching = (name) => `Find coaching opportunities in ${name}\u2019s calls this week.`;
+  const ASK_METRICS = RES_CAPS[1].prompt;
+  const UM_DAY = [
+    { time: '8:30 am', title: 'Team huddle' },
+    { time: '9:30 am', title: '1-1: Dana Reyes', link: ['View coaching focus', 'dash-ask', askCoaching('Dana Reyes')] },
+    { time: '11:00 am', title: 'Internal: Sales Floor All Hands' },
+    { time: '12:00 pm', title: 'Block: Lunch' },
+    { time: '1:00 pm', title: 'Block: Call review', link: ['View flagged calls', 'dash-goto', 'umFlagged'] },
+    { time: '1:45 pm', title: '1-1: Tom Loftis', link: ['View coaching focus', 'dash-ask', askCoaching('Tom Loftis')] },
+    { time: '2:30 pm', title: 'Weekly performance check-in', link: ['View team metrics', 'dash-ask', ASK_METRICS] }
+  ];
+  // These go to AVA in the chat, which answers at team level and offers the Researcher for anything deeper.
+  const UM_TODO = [
+    ['trending-up', 'Review your team\u2019s metrics for the week.'],
+    ['phone-call', 'Find coaching opportunities in this week\u2019s calls.'],
+    ['edit-3', 'Prepare coaching notes for your 1-1s.']
+  ];
+  const UM_SUGGESTION = 'Which agents should I coach first?';
+  const umDayAheadHtml = () => `<p class="msg-ava">Here’s a look at your day ahead:</p>${schedHtml(UM_DAY, 'Your schedule today')}${todoHtml(UM_TODO, 'dash-todo')}`;
+  // Rows use the DC row shape. act is the click handler: dash-ask opens the Researcher, res-noop says the screen is not built yet.
+  const coach = (name, sub, tip) => ({ name, sub, tip, act: 'dash-ask', q: askCoaching(name) });
+  const flagged = (name, chip, sub) => ({ name, status: chip, sub, action: 'Review call.', act: 'res-noop' });
+  const TEAM_STACK = [
+    { title: 'Coaching priorities', chip: 'chip-warning', rows: [
+      Object.assign(coach('Dana Reyes', 'ACE 49.7% \u2022 Connect rate 72.4%, down 6.8 pts', 'Voicemails give no reason or deadline, and she skips the 48-month comparison on high-debt calls. Your 1-1 is at 9:30 am.'), { tag: 'attn' }),
+      coach('Mei Lin', 'EPA 1.5, lowest on the team \u2022 ACE 49.4%', 'Ends \u201ctake me off the list\u201d calls right away. Coach her to confirm the removal and ask what to send for later.'),
+      coach('Jordan Okafor', 'Demo rate 34%, below the 50.0% target', 'Puts credit questions off until after the demo. Customers who got an early answer enrolled about twice as often.'),
+      coach('Alicia Ford', '60-day draft rate 54%, below the 81.0% target', 'Talks over customers during objections. Coach her to pause and let them finish.')
+    ] },
+    { title: 'Share what works', chip: 'chip-positive', rows: [
+      { name: 'Sam Brightwell', tag: 'top', sub: 'ACE 57.0% \u2022 LPA 25 \u2022 EPA 2.0', tip: 'Confirms the draft date on 90% of enrolled calls. Ask him to share how he closes at your next huddle.', act: 'dash-ask', q: 'Find the selling behaviors behind Sam Brightwell\u2019s results.' },
+      Object.assign(coach('Tom Loftis', 'ACE 55.6% \u2022 LPA 20 \u2022 Connect rate 77.0%', 'Compares the 48-month cost on 71% of his calls. One gap: he confirms the draft date on only 24% of enrolled calls.'), { status: ['On track', 'chip-positive'] })
+    ] },
+    { id: 'umFlagged', title: 'Calls flagged for review', chip: 'chip-negative', wide: true, rows: [
+      flagged('Dana Reyes', ['Possible guarantee', 'chip-negative'], 'Oct 28, 10:42 am \u2022 Score 61% \u2022 \u201cProhibition Against Guarantees\u201d'),
+      flagged('Alicia Ford', ['Misleading claim', 'chip-negative'], 'Oct 29, 11:30 am \u2022 Score 59% \u2022 \u201cUse of Creditors will stop calling\u201d'),
+      flagged('Mei Lin', ['Missing disclosure', 'chip-warning'], 'Oct 28, 2:05 pm \u2022 Score 66% \u2022 \u201cYour credit score may be impaired\u201d not said'),
+      flagged('Jordan Okafor', ['Missing disclosure', 'chip-warning'], 'Oct 29, 9:12 am \u2022 Score 68% \u2022 \u201cYou are not getting a loan\u201d not said')
+    ] }
+  ];
+
+  function renderTeamDash() {
+    const root = $('#pageDash');
+    root.dataset.role = 'um';
+    const body = $('.page-body', root);
+    const scroll = body ? body.scrollTop : 0;
+    const kpis = TEAM_KPIS.map(([pre, label, name, key, last, unit]) => {
+      const target = metricRow(name)[2];
+      const now = TEAM.reduce((sum, a) => sum + a[key], 0) / TEAM.length;
+      const met = TEAM.filter((a) => a[key] >= num(target)).length;
+      return `<li class="kpi-card">
+        <p class="kpi-head"><span class="kpi-pre">${pre}</span><span>${label}</span></p>
+        <p class="kpi-now">${kpiValue(`${now.toFixed(1)}${unit}`, target)}<span>this week</span></p>
+        <p class="kpi-last">${kpiValue(`${last.toFixed(1)}${unit}`, target)}<span>vs last week</span></p>
+        <p class="kpi-team">${icon('users', 16)}<span>${met} of ${TEAM.length} agents at target</span></p>
+      </li>`;
+    }).join('');
+    const cards = TEAM_STACK.map((c, i) => `<section class="dash-card${c.wide ? ' dash-card-wide' : ''}"${c.id ? ` id="${c.id}" tabindex="-1"` : ''} aria-labelledby="tc-${i}">
+      <h3 class="chip ${c.chip}" id="tc-${i}">${c.title}</h3>
+      <ul class="${c.wide ? 'dash-cols' : 'dash-list'}">${c.rows.map((r) => `<li><button class="dash-lead" type="button" data-action="${r.act}" data-arg="${esc(r.q || '')}">${dashRowBody(r)}</button></li>`).join('')}</ul>
+    </section>`).join('');
+    root.innerHTML = `
+      <header class="page-head"><h1 class="page-title">Welcome back, Keeley</h1></header>
+      <div class="page-body"><div class="dash-body">
+        <section class="dash-sec" aria-labelledby="tm-h">
+          <div>
+            <h2 class="dash-h" id="tm-h">Your team’s metrics</h2>
+            <div class="dash-sub"><p>Here’s a look at your team’s performance from the past week.</p><button class="link link-md" type="button" data-action="dash-ask" data-arg="${esc(ASK_METRICS)}">Review team performance</button></div>
+          </div>
+          <ul class="kpi-row" aria-label="Team metrics this week compared with last week">${kpis}</ul>
+        </section>
+        <section class="dash-sec" aria-labelledby="tl-h">
+          <div>
+            <h2 class="dash-h" id="tl-h">Where to focus</h2>
+            <div class="dash-sub"><p>Agents to coach and calls to review, based on this week’s scored calls and metrics.</p></div>
+          </div>
+          <div class="stack">${cards}</div>
+        </section>
+      </div></div>`;
+    $('.page-body', root).scrollTop = scroll;
+  }
+
+  // AVA on the UM dashboard answers at team level. Anything that needs the calls themselves is handed to the Call Researcher.
+  const teamKpiNow = ([, label, name, key, , unit]) => {
+    const avg = TEAM.reduce((sum, a) => sum + a[key], 0) / TEAM.length;
+    const target = metricRow(name)[2];
+    return { label, avg: `${avg.toFixed(1)}${unit}`, target, ok: avg >= num(target) };
+  };
+  const askMore = (text, ask, label) => {
+    state.chatAsk = ask;
+    pushChat({ kind: 'ava', text });
+    pushChat({ kind: 'choices', options: [{ id: 'research', label }] });
+  };
+
+  function umChatReply(text) {
+    const agent = TEAM.find((a) => new RegExp(`\\b${a.name.split(' ')[0]}\\b`, 'i').test(text));
+    if (agent) {
+      const low = TEAM_KPIS.filter(([, , name, key]) => agent[key] < num(metricRow(name)[2]))
+        .map(([, label, name, key, , unit]) => `${label} (${agent[key]}${unit} against ${metricRow(name)[2]})`);
+      const first = agent.name.split(' ')[0];
+      return askMore(`${low.length ? `${first} is below target on ${joinList(low)}.` : `${first} is at or above target on every metric.`} The calls behind it are in the Call Researcher.`, askCoaching(agent.name), `Find coaching for ${first}`);
+    }
+    if (/notes|1-1|one on one/i.test(text)) {
+      return askMore('I can write a short coaching note for each agent from this week\u2019s scored calls. The Call Researcher does that.', 'Prepare coaching notes for each of my agents.', 'Prepare coaching notes');
+    }
+    if (/flag|compliance|disclosure|review.*call/i.test(text)) {
+      const rows = TEAM_STACK[2].rows;
+      return askMore(`${rows.length} calls were flagged this week: ${joinList(rows.map((r) => `${r.name} (${r.status[0].toLowerCase()})`))}. They are listed under Calls flagged for review.`, RES_CAPS[0].prompt, 'Find coaching in these calls');
+    }
+    if (/coach|first|priorit|focus|who|agent/i.test(text)) {
+      const rows = TEAM_STACK[0].rows.slice(0, 3);
+      return askMore(`Start with ${joinList(rows.map((r) => r.name))}. ${rows[0].name}: ${rows[0].tip}`, RES_CAPS[0].prompt, 'Find coaching opportunities in calls');
+    }
+    if (/metric|performance|numbers|trend|week|team/i.test(text)) {
+      const k = TEAM_KPIS.map(teamKpiNow);
+      const above = k.filter((x) => x.ok).map((x) => `${x.label} (${x.avg} against ${x.target})`);
+      const below = k.filter((x) => !x.ok).map((x) => `${x.label} (${x.avg} against ${x.target})`);
+      return askMore(`${above.length ? `Your team is at target on ${joinList(above)}. ` : ''}${below.length ? `${joinList(below)} ${below.length > 1 ? 'are' : 'is'} below target. ` : ''}The Call Researcher can show the four-week trends.`, ASK_METRICS, 'Review team performance');
+    }
+    pushChat({ kind: 'ava', text: 'I can summarize your team\u2019s metrics, tell you who to coach first, or point out flagged calls. For anything that needs the calls themselves, I\u2019ll open the Call Researcher.' });
+  }
+
+  // Opens a fresh Researcher thread and runs the request, so a row or to-do on the dashboard lands on a finished answer.
+  function askResearcher(prompt) {
+    const id = `t${++seq}`;
+    RES_THREADS.unshift(newThread(id));
+    Object.assign(state.res, { thread: id, filter: 'all', doc: null, docMax: false, draft: '', toBottom: true });
+    state.page = 'researcher';
+    render();
+    resSend(prompt);
   }
 
   /* ---- Researcher ---- */
@@ -1583,18 +1738,11 @@
   function setRole(role) {
     if (role === state.role) return;
     state.role = role;
-    state.chatMode.dashboard = role === 'dc' ? 'docked' : 'closed'; // only the DC dashboard has AVA beside it
+    state.chatMode.dashboard = 'docked'; // both dashboards keep AVA beside them
     // Land on the Dashboard when the current page does not exist in the new view.
     if (!PAGES[state.page].roles.includes(role)) state.page = 'dashboard';
     render();
     $('#roleSelect').focus();
-  }
-
-  function renderStub() {
-    const label = PAGES[state.page].label;
-    $('#pageStub').innerHTML = `
-      <header class="page-head"><h1 class="page-title">${label}</h1></header>
-      <p class="placeholder-note">The ${state.role.toUpperCase()} ${label} isn't part of this prototype yet.</p>`;
   }
 
   /* ---- Layout: pages and AVA chat mode ---- */
@@ -1611,15 +1759,14 @@
     const panelB = Math.max(8, Math.min(state.fab.bottom + 64, window.innerHeight - 560 - 8));
     app.style.setProperty('--panel-b', `${panelB}px`);
 
-    $('#pageDash').hidden = !(state.page === 'dashboard' && state.role === 'dc');
+    $('#pageDash').hidden = state.page !== 'dashboard';
     $('#pageLeads').hidden = state.page !== 'leads';
     $('#pagePerf').hidden = state.page !== 'performance';
     $('#pageRes').hidden = state.page !== 'researcher';
-    $('#pageStub').hidden = !(state.page === 'dashboard' && state.role !== 'dc');
     $('#ava').hidden = mode === 'closed';
 
     const fab = $('#fab');
-    fab.hidden = mode === 'docked' || state.page === 'researcher'; // the Researcher is its own agent, so AVA stays out of that page
+    fab.hidden = mode === 'docked' || state.page === 'researcher'; // the Researcher is the UM's agent, so AVA stays off that page
     const open = mode === 'hover';
     fab.setAttribute('aria-expanded', String(open));
     fab.setAttribute('aria-label', open ? 'Close AVA Chat' : 'Open AVA Chat');
@@ -1627,9 +1774,8 @@
     dock.setAttribute('aria-pressed', String(mode === 'docked'));
     dock.setAttribute('aria-label', mode === 'docked' ? 'Float chat over the page' : 'Dock chat to the right');
     const leadsFocus = state.page === 'performance' || state.page === 'dashboard';
-    $('#chatSuggestion').textContent = leadsFocus ? 'Which leads should I work first?' : 'Draft me an email response to this lead';
+    $('#chatSuggestion').textContent = state.role === 'um' ? UM_SUGGESTION : leadsFocus ? 'Which leads should I work first?' : 'Draft me an email response to this lead';
     $('#chatInput').placeholder = state.page === 'dashboard' ? 'How can I help you today?' : 'Chat with me';
-    $('#chatSuggestion').hidden = state.role === 'um'; // the suggestion is lead-specific, so it is a DC prompt
     document.title = `SCai | ${PAGES[state.page].label}`;
   }
 
@@ -1645,8 +1791,7 @@
     if (state.page === 'leads') { renderInbox(); renderMiddle(); }
     else if (state.page === 'performance') renderPerf();
     else if (state.page === 'researcher') renderResearcher();
-    else if (state.page === 'dashboard' && state.role === 'dc') renderDash();
-    else renderStub();
+    else if (state.page === 'dashboard') (state.role === 'um' ? renderTeamDash : renderDash)();
     applyLayout();
     renderDay();
     renderChat();
@@ -1784,6 +1929,10 @@
   function handleChatMessage(text) {
     pushChat({ kind: 'user', text });
     renderChat();
+    if (state.role === 'um') {
+      setTimeout(() => { umChatReply(text); renderChat(); }, 600);
+      return;
+    }
     const target = findNamedLead(text) || (state.page === 'leads' ? selectedLead() : null);
     if (/draft|email|write|respond|reply/i.test(text)) {
       setTimeout(() => {
@@ -1941,7 +2090,7 @@
         toast({ tone: 'info', ic: 'info', title: 'Not in the prototype', text: 'This control is not part of the prototype yet.' });
         break;
       case 'dash-plan':
-        openLead(t.dataset.id, 'insights');
+        openLead(t.dataset.arg, 'insights');
         break;
       case 'dash-queue':
         Object.assign(state, { page: 'performance' });
@@ -1949,8 +2098,16 @@
         render();
         break;
       case 'dash-todo':
-        handleChatMessage(t.dataset.q);
+        handleChatMessage(t.dataset.arg);
         break;
+      case 'dash-ask':
+        askResearcher(t.dataset.arg);
+        break;
+      case 'dash-goto': {
+        const el = document.getElementById(t.dataset.arg);
+        if (el) { el.scrollIntoView({ block: 'start' }); el.focus({ preventScroll: true }); }
+        break;
+      }
       case 'dash-lead': {
         const target = leadById(t.dataset.id);
         if (!target) break;
@@ -2142,6 +2299,12 @@
       }
       case 'quick-reply': {
         const choice = t.dataset.choice;
+        if (choice === 'research') {
+          state.chat = state.chat.filter((m) => m.kind !== 'choices');
+          pushChat({ kind: 'user', text: 'Open the Call Researcher' });
+          askResearcher(state.chatAsk);
+          break;
+        }
         const target = leadById(state.chatLead) || l;
         state.chat = state.chat.filter((m) => m.kind !== 'choices');
         pushChat({ kind: 'user', text: choice === 'chat' ? 'Here in chat' : 'On the lead page' });
@@ -2150,7 +2313,7 @@
         break;
       }
       case 'suggestion':
-        handleChatMessage(state.page === 'performance' || state.page === 'dashboard' ? 'Which leads should I work first?' : `Draft me an email response to Lead #${LEAD_ID}`);
+        handleChatMessage(state.role === 'um' ? UM_SUGGESTION : state.page === 'performance' || state.page === 'dashboard' ? 'Which leads should I work first?' : `Draft me an email response to Lead #${LEAD_ID}`);
         break;
       case 'new-chat':
         state.chat = [];
