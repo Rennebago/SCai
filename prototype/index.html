@@ -14,7 +14,9 @@
       <section class="inbox" id="inbox" aria-label="Lead list"></section>
       <main class="middle" id="middle"></main>
     </div>
+    <main class="page page-dash" id="pageDash" hidden></main>
     <main class="page page-perf" id="pagePerf" hidden></main>
+    <main class="page page-res" id="pageRes" hidden></main>
     <main class="page page-stub" id="pageStub" hidden></main>
 
     <aside class="ava" id="ava" aria-labelledby="avaTitle">
@@ -30,7 +32,10 @@
       </header>
 
       <div class="ava-body">
-        <div class="ava-log" id="chatLog" role="log" aria-live="polite" aria-label="Conversation with AVA"></div>
+        <div class="ava-log" id="chatLog" role="log" aria-live="polite" aria-label="Conversation with AVA">
+          <div class="chat-day" id="chatDay" hidden></div>
+          <div class="chat-msgs" id="chatMsgs" hidden></div>
+        </div>
         <div class="ava-footer">
           <button class="chip chip-info chip-action" type="button" id="chatSuggestion" data-action="suggestion">Draft me an email response to this lead</button>
           <form class="chat-box" data-form="chat" autocomplete="off">
@@ -50,6 +55,7 @@
     <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
   </div>
   <div id="dialogRoot"></div>
+  <div id="ctxRoot"></div>
 
   <script src="app.js"></script>
 </body>
